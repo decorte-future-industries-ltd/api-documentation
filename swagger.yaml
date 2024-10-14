@@ -1,0 +1,419 @@
+openapi: 3.0.0
+info:
+  title: DFI API
+  version: 1.0.0
+  description: API for DFI questionnaire and audio analysis
+servers:
+  - url: https://web.decorte.tech/sonus/api/v1
+security:
+  - ApiKeyAuth: []
+  - UserIdAuth: []
+paths:
+  /questionnaire:
+    get:
+      summary: Get questionnaire
+      description: Returns either an initial or follow-up questionnaire based on the user's UUID
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Questionnaire'
+              example:
+                questionnaire_id: "dfi_initial_client_name_v1"
+                type: "initial"
+                questions:
+                  - question_id: "q1"
+                    text: "What is your age range?"
+                    type: "single_choice"
+                    options: ["18-30", "31-45", "46-60", "61-75", "76+"]
+                    required: true
+                  - question_id: "q2"
+                    text: "Do you have any diagnosed heart conditions?"
+                    type: "multiple_choice"
+                    options: ["None", "Hypertension", "Arrhythmia", "Other"]
+                    required: true
+                  - question_id: "q3"
+                    text: "How would you rate your overall stress level? (1 = Very low, 5 = Very high)"
+                    type: "single_choice"
+                    options: ["1", "2", "3", "4", "5"]
+                    required: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /submissions:
+    post:
+      summary: Submit questionnaire responses
+      description: Submit responses to the questionnaire
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionnaireSubmission'
+            example:
+              responses:
+                - question_id: "q1"
+                  response: "31-45"
+                - question_id: "q2"
+                  response: ["Hypertension", "Arrhythmia"]
+                - question_id: "q3"
+                  response: "3"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResponse'
+              example:
+                message: "Responses submitted successfully"
+                submission_id: "1234567890abcdef"
+                signed_upload:
+                  url: "https://storage.googleapis.com/your-bucket-name/temp-file-1234567890?GoogleAccessId=your-access-id&Expires=1234567890&Signature=abcdefghijklmnop"
+                  expiration_time_in_seconds: 3600
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /submissions/{submissionId}:
+    get:
+      summary: Fetch results for audio submission
+      description: Get the results of an audio submission
+      parameters:
+        - in: path
+          name: submissionId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: time_series_data
+          schema:
+            type: boolean
+          description: Whether to include the time series data in the response
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResult'
+              examples:
+                processing:
+                  value:
+                    status: "processing"
+                    message: "Audio results are still being processed"
+                processed:
+                  value:
+                    status: "processed"
+                    is_quality_sufficient: true
+                    metrics:
+                      heart_rate:
+                        value: 72
+                        units: "bpm"
+                      heart_rate_variability:
+                        value: 50
+                        units: "ms"
+                      heart_murmur: false
+                      time_series_data:
+                        sampling_rate: 40
+                        audio_waveform: [0.01, 0.02, 0.03, 0.04, 0.05]
+                    message: "Audio results have been processed"
+                insufficient_quality:
+                  value:
+                    status: "processed"
+                    is_quality_sufficient: false
+                    message: "Audio quality is insufficient. Please re-record and submit the audio again."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /submissions/{submissionId}/signed_url:
+    post:
+      summary: Re-generate signed URL
+      description: Generate a new signed URL for audio upload
+      parameters:
+        - in: path
+          name: submissionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedUploadResponse'
+              example:
+                signed_upload:
+                  url: "https://storage.googleapis.com/your-bucket-name/temp-file-1234567890?GoogleAccessId=your-access-id&Expires=1234567890&Signature=abcdefghijklmnop"
+                  expiration_time_in_seconds: 3600
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    UserIdAuth:
+      type: apiKey
+      in: header
+      name: X-User-Id
+  schemas:
+    Questionnaire:
+      type: object
+      properties:
+        questionnaire_id:
+          type: string
+          example: dfi_initial_client_name_v1
+        type:
+          type: string
+          enum: [initial, followup]
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+    Question:
+      type: object
+      properties:
+        question_id:
+          type: string
+        text:
+          type: string
+        type:
+          type: string
+          enum: [single_choice, multiple_choice, boolean, free_text, numeric, date]
+        options:
+          type: array
+          items:
+            type: string
+        required:
+          type: boolean
+        conditional_display:
+          type: object
+          properties:
+            depends_on:
+              type: string
+            show_if_value:
+              oneOf:
+                - type: string
+                - type: boolean
+      example:
+        question_id: "q1"
+        text: "What is your age range?"
+        type: "single_choice"
+        options: ["18-30", "31-45", "46-60", "61-75", "76+"]
+        required: true
+    QuestionnaireSubmission:
+      type: object
+      properties:
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionResponse'
+    QuestionResponse:
+      type: object
+      properties:
+        question_id:
+          type: string
+        response:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: array
+              items:
+                type: string
+      example:
+        question_id: "q1"
+        response: "31-45"
+    SubmissionResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        submission_id:
+          type: string
+        signed_upload:
+          $ref: '#/components/schemas/SignedUpload'
+    SignedUpload:
+      type: object
+      properties:
+        url:
+          type: string
+        expiration_time_in_seconds:
+          type: integer
+      example:
+        url: "https://storage.googleapis.com/your-bucket-name/temp-file-1234567890?GoogleAccessId=your-access-id&Expires=1234567890&Signature=abcdefghijklmnop"
+        expiration_time_in_seconds: 3600
+    SubmissionResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [processing, processed]
+        is_quality_sufficient:
+          type: boolean
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        message:
+          type: string
+    Metrics:
+      type: object
+      properties:
+        heart_rate:
+          $ref: '#/components/schemas/Metric'
+        heart_rate_variability:
+          $ref: '#/components/schemas/Metric'
+        heart_murmur:
+          type: boolean
+        time_series_data:
+          type: object
+          properties:
+            sampling_rate:
+              type: integer
+            audio_waveform:
+              type: array
+              items:
+                type: number
+      example:
+        heart_rate:
+          value: 72
+          units: "bpm"
+        heart_rate_variability:
+          value: 50
+          units: "ms"
+        heart_murmur: false
+        time_series_data:
+          sampling_rate: 40
+          audio_waveform: [0.01, 0.02, 0.03, 0.04, 0.05]
+    Metric:
+      type: object
+      properties:
+        value:
+          type: number
+        units:
+          type: string
+      example:
+        value: 72
+        units: "bpm"
+    SignedUploadResponse:
+      type: object
+      properties:
+        signed_upload:
+          $ref: '#/components/schemas/SignedUpload'
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: string
+      example:
+        error:
+          code: "invalid_request"
+          message: "Invalid questionnaire responses"
+          details: "Question 'q3' requires a response"
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "invalid_request"
+              message: "Invalid questionnaire responses"
+              details: "Question 'q3' requires a response"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "invalid_api_key"
+              message: "Invalid or missing API Key"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "insufficient_permissions"
+              message: "User not authorized to access this resource"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "resource_not_found"
+              message: "Submission ID not found"
+    TooManyRequests:
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "rate_limit_exceeded"
+              message: "API rate limit exceeded"
+              details: "Maximum of 100 requests per minute allowed. Please try again in 30 seconds."
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "internal_error"
+              message: "An unexpected error occurred"
+              details: "Error ID: 1234567890 for tracking purposes"
