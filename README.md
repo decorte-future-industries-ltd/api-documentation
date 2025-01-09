@@ -24,8 +24,7 @@ For changelog, see [CHANGELOG.md](./CHANGELOG.md)
 
 ## Swagger Documentation
 For a more detailed and interactive specification of the API requests and responses, please refer to our Swagger documentation. This resource provides a comprehensive overview of all endpoints, request parameters, response schemas, and allows you to test the API directly from your browser.
-You can access the Swagger documentation at:
-[INSERT SWAGGER LINK HERE]
+You can access the Swagger documentation at: https://decorte-future-industries-ltd.github.io/api-documentation/
 
 ## Typical Flow Diagram
 
